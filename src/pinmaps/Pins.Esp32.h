@@ -35,7 +35,7 @@
     #define ST4_AUX_E_PIN      5   // ST4 (Aux) RA+ East
   #endif
 
-  #define UTILITY_LIGHT_PIN    13  // GPIO13 used as PWM output to drive utility lamp LED
+  #define UTILITY_LIGHT_PIN    12   //13  // GPIO13 used as PWM output to drive utility lamp LED
 
   #define DISPLAY_RESET_PIN    16  // GPIO16 used to reset some displays, i.e. the SSD1309
 

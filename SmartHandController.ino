@@ -49,6 +49,36 @@ void systemServices() {
   nv.poll();
 }
 
+
+//https://randomnerdtutorials.com/esp32-pwm-arduino-ide/
+void setup_pwm(void) {
+  //LED PWM
+  ledcSetup(PWM_LED_CHANNEL, PWM_LED_FREQ, PWM_LED_RESOLUTION);
+  ledcAttachPin(PWM_LED_PIN, PWM_LED_CHANNEL);
+
+  //Buzzer PWM
+  ledcSetup(PWM_BUZZER_CHANNEL, PWM_BUZZER_FREQ, PWM_BUZZER_RESOLUTION);
+  ledcAttachPin(PWM_BUZZER_PIN, PWM_BUZZER_CHANNEL);
+
+}
+
+void verify_pwm(void) {
+  // increase the LED brightness
+  for(int dutyCycle = 0; dutyCycle <= 255; dutyCycle++){   
+    // changing the LED brightness with PWM
+    ledcWrite(PWM_LED_CHANNEL, dutyCycle);
+    delay(15);
+  }  
+
+  // decrease the LED brightness
+  for(int dutyCycle = 255; dutyCycle >= 0; dutyCycle--){
+    // changing the LED brightness with PWM
+    ledcWrite(PWM_LED_CHANNEL, dutyCycle);   
+    delay(15);
+  }  
+}
+
+
 void setup(void) {
   
   // start debug serial port
@@ -73,9 +103,16 @@ void setup(void) {
     tasks.add(142, 0, true, 7, profiler, "Profilr");
   #endif
 
+
+  //2024-1-20 Galileo
+  //setup_pwm();
+
   VLF("MSG: Starting UI loop");
 }
 
 void loop() {
+
+  //verify_pwm();
+
   tasks.yield();
 }
