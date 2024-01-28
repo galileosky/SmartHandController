@@ -3,12 +3,20 @@
 
 #if defined(OPERATIONAL_MODE) && (OPERATIONAL_MODE == ETHERNET_W5100 || OPERATIONAL_MODE == ETHERNET_W5500)
 
+#include "../tasks/OnTask.h"
+
+#if MDNS_SERVER == ON
+  EthernetUDP udp;
+  MDNS mdns(udp);
+  void mdnsPoll() { mdns.run(); }
+#endif
+
 bool EthernetManager::init() {
   if (!active) {
     #ifdef NV_ETHERNET_SETTINGS_BASE
       if (EthernetSettingsSize < sizeof(EthernetSettings)) { nv.initError = true; DL("ERR: EthernetManager::init(); EthernetSettingsSize error"); }
 
-      if (!nv.hasValidKey()) {
+      if (!nv.hasValidKey() || nv.isNull(NV_ETHERNET_SETTINGS_BASE, sizeof(EthernetSettings))) {
         VLF("MSG: Ethernet, writing defaults to NV");
         nv.writeBytes(NV_ETHERNET_SETTINGS_BASE, &settings, sizeof(EthernetSettings));
       }
@@ -44,12 +52,38 @@ bool EthernetManager::init() {
     }
 
     VLF("MSG: Ethernet, initialized");
+
+    #if MDNS_SERVER == ON
+      if (mdns.begin(settings.ip, MDNS_NAME)) {
+        VLF("MSG: Ethernet, mDNS started");
+        VF("MSG: Ethernet, starting mDNS polling");
+        VF(" task (rate 5ms priority 7)... ");
+        if (tasks.add(5, 0, true, 7, mdnsPoll, "mdPoll")) { VL("success"); } else { VL("FAILED!"); }
+      } else {
+        VLF("WRN: Ethernet, mDNS start failed!");
+      }
+    #endif
   }
   return active;
 }
 
 void EthernetManager::restart() {
-  Ethernet.begin(settings.mac, settings.ip, settings.dns, settings.gw, settings.sn);
+  if (ETHERNET_RESET_PIN != OFF) {
+    VF("MSG: Ethernet, device ETHERNET_RESET_PIN ("); V(ETHERNET_RESET_PIN); VL(")");
+    pinMode(ETHERNET_RESET_PIN, OUTPUT); 
+    digitalWrite(ETHERNET_RESET_PIN, LOW);
+    delay(1000);
+    digitalWrite(ETHERNET_RESET_PIN, HIGH);
+    delay(1000);
+  }
+
+  VLF("MSG: Ethernet, restart");
+  if (settings.dhcpEnabled) {
+    active = Ethernet.begin(settings.mac);
+  } else {
+    Ethernet.begin(settings.mac, settings.ip, settings.dns, settings.gw, settings.sn);
+    active = true;
+  }
 }
 
 void EthernetManager::writeSettings() {

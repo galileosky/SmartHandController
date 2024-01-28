@@ -7,8 +7,6 @@
 
 #include "../../../tasks/OnTask.h"
 
-extern int _hardwareTimersAllocated;
-
 StepDirMotor *stepDirMotorInstance[9];
 
 #ifndef AXIS1_STEP_PIN
@@ -74,23 +72,21 @@ void moveStepDirMotorAxis9() { stepDirMotorInstance[8]->move(AXIS9_STEP_PIN); }
 void moveStepDirMotorFFAxis9() { stepDirMotorInstance[8]->moveFF(AXIS9_STEP_PIN); }
 void moveStepDirMotorFRAxis9() { stepDirMotorInstance[8]->moveFR(AXIS9_STEP_PIN); }
 
-StepDirMotor::StepDirMotor(const uint8_t axisNumber, const StepDirDriverPins *Pins, const StepDirDriverSettings *Settings, bool useFastHardwareTimers) {
+StepDirMotor::StepDirMotor(const uint8_t axisNumber, const StepDirPins *Pins, StepDirDriver *Driver, bool useFastHardwareTimers) {
   if (axisNumber < 1 || axisNumber > 9) return;
 
+  driverType = STEP_DIR;
   strcpy(axisPrefix, "MSG: StepDir_, ");
   axisPrefix[12] = '0' + axisNumber;
-  driverType = STEP_DIR;
   this->axisNumber = axisNumber;
   this->Pins = Pins;
-  #ifdef SHARED_DIRECTION_PINS
-    if (axisNumber > 2) useFastHardwareTimers = false;
-  #endif
+
+  if (axisNumber > 2) useFastHardwareTimers = false;
   this->useFastHardwareTimers = useFastHardwareTimers;
 
-  driver = new StepDirDriver(axisNumber, Pins, Settings);
+  driver = Driver;
   pulseWidth = driver->getPulseWidth();
-
-  setDefaultParameters(Settings->microsteps, Settings->microstepsGoto, Settings->currentHold, Settings->currentRun, Settings->currentGoto, 0);
+  setDefaultParameters(driver->settings.microsteps, driver->settings.microstepsSlewing, driver->settings.currentHold, driver->settings.currentRun, driver->settings.currentGoto, 0);
 
   // attach the function pointers to the callbacks
   stepDirMotorInstance[axisNumber - 1] = this;
@@ -135,11 +131,7 @@ bool StepDirMotor::init() {
 
   // init default driver enable pin
   pinModeEx(Pins->enable, OUTPUT);
-  // driver enabled for possible TMC current calibration
-  digitalWriteEx(Pins->enable, Pins->enabledState)
-
-  // now disable the driver
-  power(false);
+  digitalWriteEx(Pins->enable, !Pins->enabledState)
 
   // start the motor timer
   V(axisPrefix); VF("start task to move motor... ");
@@ -148,16 +140,11 @@ bool StepDirMotor::init() {
   taskHandle = tasks.add(0, 0, true, 0, callback, timerName);
   if (taskHandle) {
     V("success");
-    if (useFastHardwareTimers && _hardwareTimersAllocated < TASKS_HWTIMER_MAX) {
-      if (tasks.requestHardwareTimer(taskHandle, _hardwareTimersAllocated + 1, 0)) {
-        _hardwareTimersAllocated++;
-        VF(" (hardware timer)");
-      } else {
-        VF(" (no hardware timer!)");
-      }
-    }
-    VL("");
-  } else { VLF("FAILED!"); return false; }
+    if (useFastHardwareTimers && !tasks.requestHardwareTimer(taskHandle, 0)) { VLF(" (no hardware timer!)"); } else { VLF(""); }
+  } else {
+    VLF("FAILED!");
+    return false;
+  }
 
   return true;
 }
@@ -171,7 +158,7 @@ void StepDirMotor::setReverse(int8_t state) {
 
 // sets driver parameters: microsteps, microsteps goto, hold current, run current, goto current, unused
 void StepDirMotor::setParameters(float param1, float param2, float param3, float param4, float param5, float param6) {
-  driver->setParameters(param1, param2, param3, param4, param5, param6);
+  driver->init(param1, param2, param3, param4, param5, param6);
   homeSteps = driver->getMicrostepRatio();
   V(axisPrefix); VF("sequencer homes every "); V(homeSteps); VLF(" step(s)");
 }
@@ -181,14 +168,18 @@ bool StepDirMotor::validateParameters(float param1, float param2, float param3, 
   return driver->validateParameters(param1, param2, param3, param4, param5, param6);
 }
 
-// sets motor power on/off (if possible)
-void StepDirMotor::power(bool state) {
+// sets motor enable on/off (if possible)
+void StepDirMotor::enable(bool state) {
+  V(axisPrefix); VF("driver powered ");
+  if (state) { VF("up"); } else { VF("down"); }
+
   if (Pins->enable != OFF && Pins->enable != SHARED) {
-    V(axisPrefix); VF("driver powered "); if (state) { VF("up"); } else { VF("down"); } VF(" using pin "); VL(Pins->enable);
+    VF(" using pin "); VL(Pins->enable);
     digitalWriteEx(Pins->enable, state ? Pins->enabledState : !Pins->enabledState);
   } else {
-    driver->power(state);
+    if (driver->enable(state)) { VLF(" using secondary method"); } else { VLF(" skipped no control available"); }
   }
+  enabled = state;
 }
 
 // get the associated stepper drivers status
@@ -211,13 +202,16 @@ void StepDirMotor::setFrequencySteps(float frequency) {
     }
   #endif
 
+  if (!inBacklash) modeSwitch();
+
+  Y;
   // negative frequency, convert to positive and reverse the direction
   int dir = 0;
   if (frequency > 0.0F) dir = 1; else if (frequency < 0.0F) { frequency = -frequency; dir = -1; }
 
   // if in backlash override the frequency OR change
   // microstep mode and/or swap in fast ISRs as required
-  if (inBacklash) frequency = backlashFrequency; else modeSwitch();
+  if (inBacklash) frequency = backlashFrequency;
 
   if (frequency != currentFrequency || microstepModeControl >= MMC_SLEWING_PAUSE) {
     lastFrequency = frequency;
@@ -270,14 +264,11 @@ void StepDirMotor::setFrequencySteps(float frequency) {
 
 // switch microstep modes as needed
 void StepDirMotor::modeSwitch() {
-  Y;
   if (lastFrequency <= backlashFrequency*2.0F) {
     if (microstepModeControl >= MMC_SLEWING) {
       microstepModeControl = MMC_TRACKING_READY;
 
-      if (enableMoveFast(false)) {
-        V(axisPrefix); VF("high speed ISR swapped out at "); V(lastFrequency); VL(" steps/sec.");
-      }
+      enableMoveFast(false);
 
       if (driver->modeSwitchAllowed || driver->modeSwitchFastAllowed) {
         V(axisPrefix); VLF("mode switch tracking set");
@@ -286,20 +277,19 @@ void StepDirMotor::modeSwitch() {
     }
   } else {
     if (microstepModeControl == MMC_TRACKING) {
-      microstepModeControl = MMC_SLEWING_REQUEST;
+      noInterrupts();
+      if (!sync || (step == -1 && direction == dirRev) || (step == 1 && direction == dirFwd)) {
+        microstepModeControl = MMC_SLEWING_REQUEST;
+      }
+      interrupts();
       switchStartTimeMs = millis();
     } else
     if (microstepModeControl == MMC_SLEWING_PAUSE) {
-
       if (driver->modeSwitchAllowed || driver->modeSwitchFastAllowed) {
         V(axisPrefix); VLF("mode switch slewing set");
         stepSize = driver->modeMicrostepSlewing();
       }
-
-      if (enableMoveFast(true)) {
-        V(axisPrefix); VF("high speed ISR swapped in at "); V(lastFrequency); VLF(" steps/sec.");
-      }
-
+      enableMoveFast(true);
       microstepModeControl = MMC_SLEWING_READY;
     }
   }
@@ -322,8 +312,17 @@ void StepDirMotor::setSlewing(bool state) {
 // swaps in/out fast unidirectional ISR for slewing 
 bool StepDirMotor::enableMoveFast(const bool fast) {
   if (fast) {
-    if (direction == dirRev) tasks.setCallback(taskHandle, callbackFR); else tasks.setCallback(taskHandle, callbackFF);
-  } else tasks.setCallback(taskHandle, callback);
+    if (direction == dirRev) {
+      tasks.setCallback(taskHandle, callbackFR);
+      V(axisPrefix); VF("high speed Rev ISR swapped in at "); V(lastFrequency); VLF(" steps/sec.");
+    } else {
+      tasks.setCallback(taskHandle, callbackFF);
+      V(axisPrefix); VF("high speed Fwd ISR swapped in at "); V(lastFrequency); VLF(" steps/sec.");
+    }
+  } else {
+    tasks.setCallback(taskHandle, callback);
+    V(axisPrefix); VF("high speed ISR swapped out at "); V(lastFrequency); VL(" steps/sec.");
+  }
   return true;
 }
 
@@ -350,7 +349,7 @@ IRAM_ATTR void StepDirMotor::move(const int16_t stepPin) {
     if (direction > DirNone) return;
   #endif
 
-  if (microstepModeControl == MMC_SLEWING_REQUEST && (motorSteps + backlashSteps) % homeSteps == 0) {
+  if (microstepModeControl == MMC_SLEWING_REQUEST && (motorSteps + backlashSteps) % homeSteps == 0 && direction < DirNone) {
     microstepModeControl = MMC_SLEWING_PAUSE;
     tasks.immediate(monitorHandle);
   }
@@ -361,7 +360,7 @@ IRAM_ATTR void StepDirMotor::move(const int16_t stepPin) {
   #endif
 
   long lastTargetSteps = targetSteps;
-  if (synchronized && !inBacklash) targetSteps += step;
+  if (sync && !inBacklash) targetSteps += step;
 
   if (motorSteps > targetSteps || (inBacklash && direction == dirRev)) {
     if (direction != dirRev) {
@@ -433,7 +432,7 @@ IRAM_ATTR void StepDirMotor::moveFF(const int16_t stepPin) {
     if (takeStep) {
   #endif
 
-  if (synchronized) targetSteps += stepSize;
+  if (sync) targetSteps += stepSize;
 
   if (motorSteps < targetSteps) {
     motorSteps += stepSize;
@@ -461,7 +460,7 @@ IRAM_ATTR void StepDirMotor::moveFR(const int16_t stepPin) {
     if (takeStep) {
   #endif
 
-  if (synchronized) targetSteps -= stepSize;
+  if (sync) targetSteps -= stepSize;
 
   if (motorSteps > targetSteps) {
     motorSteps -= stepSize;

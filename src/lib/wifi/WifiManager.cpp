@@ -15,7 +15,7 @@ bool WifiManager::init() {
     #ifdef NV_WIFI_SETTINGS_BASE
       if (WifiSettingsSize < sizeof(WifiSettings)) { nv.initError = true; DL("ERR: WifiManager::init(), WifiSettingsSize error"); }
 
-      if (!nv.hasValidKey()) {
+      if (!nv.hasValidKey() || nv.isNull(NV_WIFI_SETTINGS_BASE, sizeof(WifiSettings))) {
         VLF("MSG: WiFi, writing defaults to NV");
         nv.writeBytes(NV_WIFI_SETTINGS_BASE, &settings, sizeof(WifiSettings));
       }
@@ -119,6 +119,10 @@ bool WifiManager::init() {
     } else {
       active = true;
       VLF("MSG: WiFi, initialized");
+
+      #if MDNS_SERVER == ON && !defined(ESP8266)
+        if (MDNS.begin(MDNS_NAME)) { VLF("MSG: WiFi, mDNS started"); } else { VLF("WRN: WiFi, mDNS start failed!"); }
+      #endif
 
       #if STA_AUTO_RECONNECT == true
         if (settings.stationEnabled) {

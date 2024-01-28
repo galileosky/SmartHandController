@@ -133,8 +133,7 @@ void UI::menuContrast() {
   current_selection_L3 = display->UserInterfaceSelectionList(&keyPad, L_SET_DISP_CONTRAST, current_selection_L3, string_list_Display);
   if (current_selection_L3 > 0) {
     displaySettings.maxContrastSelection = current_selection_L3 - 1;
-    displaySettings.maxContrast = UI::Contrast[displaySettings.maxContrastSelection];
-    display->setContrast(displaySettings.maxContrast);
+    display->setContrast(UI::Contrast[displaySettings.maxContrastSelection]);
     nv.writeBytes(NV_DISPLAY_SETTINGS_BASE, &displaySettings, sizeof(DisplaySettings));
   }
 }
@@ -226,16 +225,16 @@ void UI::menuLatitude() {
   char out[20];
   if (message.show(onStep.Get(":Gt#", out))) {
     char* pEnd;
-    int degree = (int)strtol(&out[0], &pEnd, 10);
+    int degree = (int)strtol(&out[1], &pEnd, 10);
     int minute = (int)strtol(&out[4], &pEnd, 10);
-    long angle = degree * 60;
-    degree > 0 ? angle += minute : angle -= minute;
+    long angle = degree * 60 + minute;
+    if (out[0] == '-') angle = -angle;
     angle *= 60;
     if (display->UserInterfaceInputValueLatitude(&keyPad, &angle)) {
-      angle /= 60;
-      minute = abs(angle % 60);
-      degree = angle / 60;
-      sprintf(out, ":St%+03d*%02d#", degree, minute);
+      angle = angle / 60;
+      minute = abs(angle) % 60;
+      degree = abs(angle) / 60;
+      sprintf(out, ":St%c%02d*%02d#", angle < 0 ? '-' : '+', degree, minute);
       message.show(onStep.Set(out),false);
     }
   }
@@ -245,16 +244,16 @@ void UI::menuLongitude() {
   char out[20];
   if (message.show(onStep.Get(":Gg#", out))) {
     char* pEnd;
-    int degree = (int)strtol(&out[0], &pEnd, 10);
+    int degree = (int)strtol(&out[1], &pEnd, 10);
     int minute = (int)strtol(&out[5], &pEnd, 10);
-    long angle = degree * 60;
-    degree > 0 ? angle += minute : angle -= minute;
-    angle *= 60;
+    long angle = degree * 60 + minute;
+    if (out[0] == '-') angle = -angle;
+    angle *= 60;    
     if (display->UserInterfaceInputValueLongitude(&keyPad, &angle)) {
-      angle /= 60;
+      angle = angle / 60;
       minute = abs(angle) % 60;
-      degree = angle / 60;
-      sprintf(out, ":Sg%+04d*%02d#", degree, minute);
+      degree = abs(angle) / 60;
+      sprintf(out, ":Sg%c%03d*%02d#", angle < 0 ? '-' : '+', degree, minute);
       message.show(onStep.Set(out), false);
     }
   }

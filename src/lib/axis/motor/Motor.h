@@ -15,28 +15,28 @@ class Motor {
     // sets up the motor identification
     virtual bool init();
 
-    // set driver reverse state
+    // set motor reverse state
     virtual void setReverse(int8_t state);
 
-    // get driver parameters type code
+    // get motor parameters type code
     virtual char getParameterTypeCode();
 
-    // get driver default parameters
+    // get motor default parameters
     void getDefaultParameters(float *param1, float *param2, float *param3, float *param4, float *param5, float *param6);
 
-    // get driver default parameters
+    // set motor default parameters
     void setDefaultParameters(float param1, float param2, float param3, float param4, float param5, float param6);
 
-    // set driver parameters
+    // set motor parameters
     virtual void setParameters(float param1, float param2, float param3, float param4, float param5, float param6);
 
-    // validate driver parameters
+    // validate motor parameters
     virtual bool validateParameters(float param1, float param2, float param3, float param4, float param5, float param6);
 
-    // sets motor power on/off (if possible)
-    virtual void power(bool value);
+    // sets motor enable on/off (if possible)
+    virtual void enable(bool value);
 
-    // get the associated stepper driver status
+    // get the associated stepper motor driver status
     virtual DriverStatus getDriverStatus();
 
     // resets motor and target angular position in steps, also zeros backlash and index 
@@ -52,7 +52,7 @@ class Motor {
     inline long getIndexPositionSteps() { return indexSteps; }
 
     // get instrument coordinate, in steps
-    long getInstrumentCoordinateSteps();
+    virtual long getInstrumentCoordinateSteps();
 
     // set instrument coordinate, in steps
     virtual void setInstrumentCoordinateSteps(long value);
@@ -81,7 +81,7 @@ class Motor {
     void markOriginCoordinateSteps();
 
     // distance to target in steps (+/-)
-    long getTargetDistanceSteps();
+    virtual long getTargetDistanceSteps();
 
     // distance to origin or target, whichever is closer, in steps
     long getOriginOrTargetDistanceSteps();
@@ -102,16 +102,38 @@ class Motor {
     virtual int getStepsPerStepSlewing();
 
     // get synchronized state (automatic movement of target at setFrequencySteps() rate)
-    inline bool getSynchronized() { return synchronized; }
+    inline bool getSynchronized() { return sync; }
 
     // set synchronized state (automatic movement of target at setFrequencySteps() rate)
-    inline void setSynchronized(bool state) { synchronized = state; if (synchronized) targetSteps = motorSteps; }
+    virtual inline void setSynchronized(bool state) {
+      if (state) {
+        noInterrupts();
+        sync = state;
+        targetSteps = motorSteps;
+        interrupts();
+      } else sync = state;
+    }
 
     // get the current direction of motion
     Direction getDirection();
 
+    // return the encoder count, if present
+    virtual int32_t getEncoderCount() { return 0; }
+
     // set slewing state (hint that we are about to slew or are done slewing)
     virtual void setSlewing(bool state);
+
+    // calibrate the motor if required
+    virtual void calibrate(float value) { UNUSED(value); }
+
+    // calibrate the motor driver if required
+    virtual void calibrateDriver() {}
+
+    // set zero of absolute encoders
+    virtual uint32_t encoderZero() { return 0; }
+
+    // set origin of absolute encoders
+    virtual void encoderSetOrigin(uint32_t origin) {}
 
     // monitor and respond to motor state as required
     virtual void poll() {}
@@ -120,6 +142,8 @@ class Motor {
     volatile bool inBacklash = false;          // must be true if within the backlash travel
 
     volatile uint8_t monitorHandle = 0;        // handle to the axis task monitor
+
+    bool enabled = false;                      // enable/disable logical state
 
   protected:
     // disable backlash compensation, to work properly there must be an enable call to match
@@ -131,8 +155,7 @@ class Motor {
     volatile uint8_t axisNumber = 0;           // axis number for this motor (1 to 9 in OnStepX)
     char axisPrefix[16];                       // prefix for debug messages
 
-    bool enabled = false;                      // enable/disable logical state (disabled is powered down)
-    bool synchronized = true;                  // locks movement of axis target with timer rate
+    volatile bool sync = true;                 // locks movement of axis target with timer rate
     bool limitsCheck = true;                   // enable/disable numeric range limits (doesn't apply to limit switches)
 
     uint8_t homeSenseHandle = 0;               // home sensor handle
@@ -149,12 +172,9 @@ class Motor {
     volatile long targetSteps = 0;             // where we want the motor
     volatile long motorSteps = 0;              // where the motor is not counting backlash
     volatile long indexSteps = 0;              // for absolute motor position to axis position
-    volatile int  step = 1;                    // step size, and for direction control
+    volatile long step = 1;                    // step size, and for direction control
 
     float default_param1 = 0, default_param2 = 0, default_param3 = 0, default_param4 = 0, default_param5 = 0, default_param6 = 0;
-
-    bool poweredDown = false;
-
 };
 
 #endif

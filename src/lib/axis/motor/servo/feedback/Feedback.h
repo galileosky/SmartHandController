@@ -1,21 +1,24 @@
 // -----------------------------------------------------------------------------------
 // servo motor feedback
 #pragma once
-#include "../../../../Common.h"
+#include "../../../../../Common.h"
 
 #ifdef SERVO_MOTOR_PRESENT
 
 typedef struct ServoControl {
-  double in;
-  double out;
-  double set;
+  float in;
+  float out;
+  float set;
   volatile int8_t directionHint;
 } ServoControl;
 
 class Feedback {
   public:
-    // initialize feedback control and parameters
-    virtual void init(uint8_t axisNumber, ServoControl *control);
+    // initialize feedback control and parameters, controlRange is +/- 255 default
+    virtual void init(uint8_t axisNumber, ServoControl *control, float controlRange = 255);
+
+    // reset feedback control and parameters
+    virtual void reset();
 
     // get driver type code
     virtual char getParameterTypeCode();
@@ -32,13 +35,21 @@ class Feedback {
     // validate driver parameters
     virtual bool validateParameters(float param1, float param2, float param3, float param4, float param5, float param6);
 
-    // select feedback PID param set
-    virtual void selectAlternateParam(bool alternate);
+    // select feedback PID param set for tracking
+    virtual void selectTrackingParameters();
+
+    // select feedback PID param set for slewing
+    virtual void selectSlewingParameters();
+
+    // variable feedback PID params
+    virtual void variableParameters(float percent);
 
     // set feedback control direction
     virtual void setControlDirection(int8_t state);
 
     virtual void poll();
+
+    bool useVariableParameters = false;
 
   protected:
     float default_param1 = 0, default_param2 = 0, default_param3 = 0, default_param4 = 0, default_param5 = 0, default_param6 = 0;

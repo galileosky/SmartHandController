@@ -21,13 +21,13 @@
 
 // polling frequency for monitoring axis motion (default 100X/second) 
 #ifndef FRACTIONAL_SEC
-  #define FRACTIONAL_SEC            100.0F
+#define FRACTIONAL_SEC              100.0F
 #endif
 #define FRACTIONAL_SEC_US           (lround(1000000.0F/FRACTIONAL_SEC))
 
 // time limit in seconds for slew home refine phases
 #ifndef SLEW_HOME_REFINE_TIME_LIMIT
-#define SLEW_HOME_REFINE_TIME_LIMIT 30
+#define SLEW_HOME_REFINE_TIME_LIMIT 120
 #endif
 
 // ON blocks all motion when min/max are on the same pin, applies to all axes (mount/rotator/focusers)
@@ -104,7 +104,7 @@ enum AxisMeasure: uint8_t {AXIS_MEASURE_UNKNOWN, AXIS_MEASURE_MICRONS, AXIS_MEAS
 class Axis {
   public:
     // constructor
-    Axis(uint8_t axisNumber, const AxisPins *pins, const AxisSettings *settings, const AxisMeasure axisMeasure);
+    Axis(uint8_t axisNumber, const AxisPins *pins, const AxisSettings *settings, const AxisMeasure axisMeasure, float targetTolerance = 0.0F);
 
     // process axis commands
     bool command(char *reply, char *command, char *parameter, bool *supressFrame, bool *numericReply, CommandError *commandError);
@@ -194,6 +194,9 @@ class Axis {
     // returns true if at target
     bool atTarget();
 
+    // returns true if within one second of the target at the backlash takeup rate
+    bool nearTarget();
+
     // set backlash amount in "measures" (radians, microns, etc.)
     void setBacklash(float value);
 
@@ -215,6 +218,15 @@ class Axis {
     // gets backlash frequency in "measures" (degrees, microns, etc.) per second
     float getBacklashFrequency();
 
+    // reverse direction of motion
+    void setReverse(bool reverse) {
+      if (reverse) {
+        if (settings.reverse == ON) motor->setReverse(OFF); else motor->setReverse(ON);
+      } else {
+        motor->setReverse(settings.reverse);
+      }
+    }
+
     // set base movement frequency in "measures" (radians, microns, etc.) per second
     void setFrequencyBase(float frequency);
 
@@ -226,6 +238,9 @@ class Axis {
 
     // set maximum frequency in "measures" (radians, microns, etc.) per second
     void setFrequencyMax(float frequency);
+
+    // set frequency scaling factor (0.0 to 1.0)
+    void setFrequencyScale(float frequency) { if (frequency >= 0.0F && frequency <= 1.0F) scaleFreq = frequency; }
 
     // set acceleration rate in "measures" per second per second (for autoSlew)
     void setSlewAccelerationRate(float mpsps);
@@ -240,17 +255,19 @@ class Axis {
     void setSlewAccelerationTimeAbort(float seconds);
 
     // auto goto to destination target coordinate
-    // \param distance: acceleration distance in measures (to frequency)
     // \param frequency: optional frequency of slew in "measures" (radians, microns, etc.) per second
-    CommandError autoGoto(float distance, float frequency = NAN);
+    CommandError autoGoto(float frequency = NAN);
 
     // auto slew
     // \param direction: direction of motion, DIR_FORWARD or DIR_REVERSE
     // \param frequency: optional frequency of slew in "measures" (radians, microns, etc.) per second
     CommandError autoSlew(Direction direction, float frequency = NAN);
 
-     // slew to home using home sensor, with acceleration in "measures" per second per second
+    // slew to home using home sensor, with acceleration in "measures" per second per second
     CommandError autoSlewHome(unsigned long timeout = 0);
+
+    // check if homing is in progress
+    bool isHoming() { return homingStage != HOME_NONE; }
 
     // check if a home sensor is available
     inline bool hasHomeSense() { return pins->axisSense.homeTrigger != OFF; }
@@ -274,7 +291,7 @@ class Axis {
     inline bool getSynchronized() { return motor->getSynchronized(); }
 
     // report fault status of motor driver, if available
-    inline bool fault() { return motor->getDriverStatus().fault; };
+    inline bool motorFault() { return motor->getDriverStatus().fault; };
 
     // get associated motor driver status
     DriverStatus getStatus();
@@ -287,6 +304,12 @@ class Axis {
 
     // checks for an sense error that would disallow motion in a given direction or DIR_BOTH for any motion
     bool motionErrorSensed(Direction direction);
+
+    // calibrate the motor if required
+    void calibrate(float value) { motor->calibrate(value); }
+
+    // calibrate the motor driver if required
+    void calibrateDriver() { motor->calibrateDriver(); }
 
     // monitor movement
     void poll();
@@ -330,7 +353,7 @@ class Axis {
 
     uint8_t axisNumber = 0;
     char axisPrefix[13] = "MSG: Axis_, ";
-    char unitsStr[3] = "?";
+    char unitsStr[5] = "?";
     bool unitsRadians = false;
 
     bool enabled = false;        // enable/disable logical state (disabled is powered down)
@@ -368,10 +391,12 @@ class Axis {
     float minFreq = 0.0F;
     float slewFreq = 0.0F;
     float maxFreq = 0.0F;
+    float scaleFreq = 1.0F;
     float backlashFreq = 0.0F;
 
+    float targetTolerance = 0.0F;
+
     AutoRate autoRate = AR_NONE;       // auto slew mode
-    float slewAccelerationDistance;    // auto slew rate distance in measures to max rate
     float slewAccelRateFs;             // auto slew rate in measures per second per frac-sec
     float abortAccelRateFs;            // abort slew rate in measures per second per frac-sec
     float slewAccelTime = NAN;         // auto slew acceleration time in seconds

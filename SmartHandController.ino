@@ -1,7 +1,7 @@
 /*
 * Title       Smart Hand Controller (based on TeenAstro)
 *
-* Copyright (C) 2018 to 2021 Charles Lemaire, Howard Dutton, and Others
+* Copyright (C) 2018 to 2023 Charles Lemaire, Howard Dutton, and Others
 *
 * This program is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -24,18 +24,20 @@
 * Description
 *
 * Smart Hand controller addon for OnStep
-* for the actual hardware see: https://easyeda.com/hdutton/HC-20e242d665db4c85bb565a0cd0b52233
+* for the actual hardware see: https://oshwlab.com/hdutton/smart-hand-controller2-plus
 */
 
 #define Product               "SHC"
-#define FirmwareVersionMajor  "3"
-#define FirmwareVersionMinor  "03"
-#define FirmwareVersionPatch  "b"
+#define FirmwareVersionMajor  "4"
+#define FirmwareVersionMinor  "01"
+#define FirmwareVersionPatch  "c"
 
 #include "src/Common.h"
 NVS nv;
 #include "src/lib/tasks/OnTask.h"
+#include "src/lib/convert/Convert.h"
 #include "src/userInterface/UserInterface.h"
+#include "src/libApp/weather/Weather.h"
 
 #if DEBUG == PROFILER
   extern void profiler();
@@ -78,6 +80,18 @@ void verify_pwm(void) {
   }  
 }
 
+#if WEATHER != OFF
+  void weatherServices() {
+    static int i = 0;
+    char command[80];
+
+    switch (i++ % 3) {
+      case 0: sprintF(command, ":SX9A,%0.1f#", weather.getTemperature()); onStep.Set(command); break;
+      case 1: sprintF(command, ":SX9B,%0.1f#", weather.getPressure()); onStep.Set(command); break;
+      case 2: sprintF(command, ":SX9C,%0.1f#", weather.getHumidity()); onStep.Set(command); break;
+    }
+  }
+#endif
 
 void setup(void) {
   
@@ -97,6 +111,15 @@ void setup(void) {
   if (tasks.add(10, 0, true, 7, systemServices, "SysSvcs")) { VL("success"); } else { VL("FAILED!"); }
 
   userInterface.init(Version, pin, active, SERIAL_ONSTEP_BAUD_DEFAULT, static_cast<OLED>(DISPLAY_OLED));
+
+  #if WEATHER != OFF
+    // get any BME280 or BMP280 ready
+    weather.init();
+
+    // add task to forward readings to OnStep
+    VF("MSG: Setup, starting weather services task (rate 3333ms priority 7)... ");
+    if (tasks.add(3333, 0, true, 7, weatherServices, "WeaFwd")) { VL("success"); } else { VL("FAILED!"); }
+  #endif
 
   // start task manager debug events
   #if DEBUG == PROFILER
