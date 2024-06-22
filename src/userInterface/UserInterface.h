@@ -8,6 +8,8 @@
 #include "../libApp/status/Status.h"
 #include "../libApp/cmd/Cmd.h"
 #include "message/Message.h"
+#include "../lib/sound/Sound.h"     //2024-1-28 Galileo
+
 
 // coordinate mode for getting and setting RA/Dec
 #define OBSERVED_PLACE 1
@@ -184,6 +186,8 @@ private:
   long angleDEC = 0;
 
   long serialBaud = 9600;
+
+  Sound sound;              //2024-1-28 Galileo
 };
 
 extern UI userInterface;

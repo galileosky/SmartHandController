@@ -30,16 +30,24 @@
                                           //              then specify SERIAL_IP as the serial port in Config.h
 
 #define ONSTEP1_HOST_NAME        "OnStep" //    "OnStep", Wifi Host Name to connnect to, leave blank to disable.              Adjust
-#define ONSTEP1_SSID            "OnStepX" //    "ONSTEP", Wifi alternate Station SSID to connnect to.                         Adjust
+#define ONSTEP1_SSID             "OnStep" //    "ONSTEP", Wifi alternate Station SSID to connnect to.                         Adjust
 #define ONSTEP1_PASSWORD       "password" //  "password", Wifi Station mode password.                                         Adjust
 #define ONSTEP1_IP_ADDR    {192,168,0,1}  //  ..168,0,1}, Wifi Target IP Address to connect to.                               Adjust
 
-#define ONSTEP2_HOST_NAME "TerransOnStep" //          "", Wifi Host Name to connnect to, leave blank to disable.              Adjust
-#define ONSTEP2_SSID      "TerransOnStep" //    "ONSTEP", Wifi alternate Station SSID to connnect to.                         Adjust
-#define ONSTEP2_PASSWORD       "password" //          "", Wifi alternate Station mode password.                               Adjust
-#define ONSTEP2_IP_ADDR     {192,168,0,1} //  ..168,0,1}, Wifi alternate Target IP Address to connect to.                     Adjust
+#define ONSTEP2_HOST_NAME       "OnStepX" //    "OnStep", Wifi Host Name to connnect to, leave blank to disable.              Adjust
+#define ONSTEP2_SSID            "OnStepX" //    "ONSTEP", Wifi alternate Station SSID to connnect to.                         Adjust
+#define ONSTEP2_PASSWORD       "password" //  "password", Wifi Station mode password.                                         Adjust
+#define ONSTEP2_IP_ADDR    {192,168,0,1}  //  ..168,0,1}, Wifi Target IP Address to connect to.                               Adjust
 
-#define ONSTEP3_HOST_NAME  "OnStepAP-SWS" //          "", Wifi Host Name to connnect to, leave blank to disable.              Adjust
-#define ONSTEP3_SSID       "OnStepAP-SWS" //    "ONSTEP", Wifi alternate Station SSID to connnect to.                         Adjust
+#define ONSTEP3_HOST_NAME "TerransOnStep" //          "", Wifi Host Name to connnect to, leave blank to disable.              Adjust
+#define ONSTEP3_SSID      "TerransOnStep" //    "ONSTEP", Wifi alternate Station SSID to connnect to.                         Adjust
+#define ONSTEP3_PASSWORD       "password" //          "", Wifi alternate Station mode password.                               Adjust
+#define ONSTEP3_IP_ADDR     {192,168,0,1} //  ..168,0,1}, Wifi alternate Target IP Address to connect to.                     Adjust
+/*
+#define ONSTEP3_HOST_NAME  "PerseusNano-SWS" //          "", Wifi Host Name to connnect to, leave blank to disable.              Adjust
+#define ONSTEP3_SSID       "PerseusNano-SWS" //    "ONSTEP", Wifi alternate Station SSID to connnect to.                         Adjust
 #define ONSTEP3_PASSWORD       "galileo1" //  "password", Wifi alternate Station mode password.                               Adjust
 #define ONSTEP3_IP_ADDR    {192,168,10,1} //  ..168,0,1}, Wifi alternate Target IP Address to connect to.                     Adjust
+*/
+
+

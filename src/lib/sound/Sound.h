@@ -11,6 +11,7 @@ class Sound {
     void init();  // get sound pins ready
     void alert(); // sound/buzzer
     void click(); // sound/beep
+    void click(int id); // sound/beep
     void beep();  // sound/click
 
     bool enabled = STATUS_BUZZER_DEFAULT == ON;

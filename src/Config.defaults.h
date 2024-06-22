@@ -17,6 +17,9 @@
 #define SERIAL_IP_MODE OFF
 #endif
 
+
+
+
 #if SERIAL_IP_MODE == STATION
   // first, you must have an Wifi or Ethernet device:  OFF or WIFI, ETHERNET_W5100, ETHERNET_W5500
   #define OPERATIONAL_MODE       WIFI
@@ -46,3 +49,5 @@
   #define STA3_PASSWORD          ONSTEP3_PASSWORD
   #define STA3_TARGET_IP_ADDR    ONSTEP3_IP_ADDR
 #endif
+
+

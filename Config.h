@@ -62,7 +62,7 @@
 #define PWM_BUZZER_PIN        16    //buzzer
 
 #define PWM_LED_FREQ          5000
-#define PWM_LED_CHANNEL       0
+#define PWM_LED_CHANNEL       7
 #define PWM_LED_RESOLUTION    8
 
 #define PWM_BUZZER_FREQ       5000
@@ -70,5 +70,7 @@
 #define PWM_BUZZER_RESOLUTION 8
 
 
-
+#define STATUS_BUZZER_DEFAULT   ON                //2024-1-28 Galileo
+#define STATUS_BUZZER           2000    //ON
+#define STATUS_BUZZER_PIN       16
 

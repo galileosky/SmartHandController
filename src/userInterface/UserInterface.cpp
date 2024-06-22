@@ -70,9 +70,14 @@ void UI::init(const char version[], const int pin[7], const int active[7], const
 
   #if UTILITY_LIGHT != OFF
     #ifdef ESP32
-      ledcSetup(0, 5000, 8);
-      ledcAttachPin(UTILITY_LIGHT_PIN, 0);
-      ledcWrite(0, UTILITY_LIGHT);
+      //ledcSetup(ledChannel, freq, resolution)
+      ledcSetup(PWM_LED_CHANNEL, 5000, 8);
+
+      //ledcAttachPin(ledPin, ledChannel)
+      ledcAttachPin(UTILITY_LIGHT_PIN, PWM_LED_CHANNEL);
+
+      //ledcWrite(ledChannel, dutyCycle)
+      ledcWrite(PWM_LED_CHANNEL, UTILITY_LIGHT);
     #else
       pinMode(UTILITY_LIGHT_PIN, OUTPUT);
       analogWrite(UTILITY_LIGHT_PIN, UTILITY_LIGHT);
@@ -122,12 +127,25 @@ void UI::init(const char version[], const int pin[7], const int active[7], const
 
   VF("MSG: UserInterface, start UI update task (rate 30ms priority 6)... ");
   if (tasks.add(30, 0, true, 6, updateWrapper, "UIupd")) { VLF("success"); } else { VLF("FAILED!"); }
+
+
+  #if STATUS_BUZZER != OFF
+    VLF("MSG: status start buzzer");
+    sound.init();
+  #endif
+
 }
+
+
+
+
 
 void UI::poll() {
   // -----------------------------------------------------------------------------------------------------
   // connect/reconnect
+  // -----------------------------------------------------------------------------------------------------
   static unsigned long lastConnectedTime = 0;
+
   if (!status.connected && (long)(millis() - lastConnectedTime) > 2000) {
     if (!firstConnect) { message.show(L_LOST_MSG, L_CONNECTION, 1000); }
     connect();
@@ -138,6 +156,7 @@ void UI::poll() {
 
   // -----------------------------------------------------------------------------------------------------
   // sleep and wake up display
+  // -----------------------------------------------------------------------------------------------------
   if (keyPad.anyPressed()) {
     if (sleepDisplay) {
       display->setContrast(UI::Contrast[displaySettings.maxContrastSelection]);
@@ -179,6 +198,7 @@ void UI::poll() {
 
   // -----------------------------------------------------------------------------------------------------
   // main display
+  // -----------------------------------------------------------------------------------------------------
 
   // show align state
   if (status.alignSelectStar()) {
@@ -206,6 +226,7 @@ void UI::poll() {
 
   // -----------------------------------------------------------------------------------------------------
   // keypad
+  // -----------------------------------------------------------------------------------------------------
 
   // stop gotos
   if (status.getTrackingState() == Status::TRK_SLEWING || status.getParkState() == Status::PRK_PARKING) {
@@ -221,7 +242,9 @@ void UI::poll() {
     }
   } else
 
+  //===================================
   // guiding
+  //===================================
   {
     buttonCommand = false;
     #if ST4_AUX_INTERFACE == ON
@@ -246,7 +269,9 @@ void UI::poll() {
     if (buttonCommand) { time_last_action = millis(); return; }
   }
 
+  //===================================
   // feature keys
+  //===================================
   buttonCommand = false;
   if (status.align != Status::ALI_OFF) featureKeyMode = 1;
   switch (featureKeyMode) {
@@ -255,8 +280,17 @@ void UI::poll() {
       if (keyPad.F->wasPressed()) { activeGuideRate--; message.brief(L_FKEY_GUIDE_DN); buttonCommand = true; } else
       if (keyPad.f->wasPressed()) { activeGuideRate++; message.brief(L_FKEY_GUIDE_UP); buttonCommand = true; }
       if (buttonCommand) {
-        if (activeGuideRate < 4)  activeGuideRate = 4;
-        if (activeGuideRate > 10) activeGuideRate = 10;
+        if (activeGuideRate < 4) {
+          activeGuideRate = 4;
+          sound.click(-1);
+        }
+        else if (activeGuideRate > 10) {
+          activeGuideRate = 10;
+          sound.click(-1);
+        }
+        else
+          sound.click(1);
+          
         char cmd[5] = ":Rn#"; cmd[2] = '0' + activeGuideRate - 1;
         message.show(onStep.Set(cmd));
       }
@@ -274,17 +308,28 @@ void UI::poll() {
       }
     break;
 
+    //-----------------------
     // util. light
+    //-----------------------
     case 3:
       #if UTILITY_LIGHT != OFF
-        if (keyPad.F->wasPressed()) { current_selection_utility_light--; message.brief(L_FKEY_LAMP_DN); buttonCommand = true; } else
-        if (keyPad.f->wasPressed()) { current_selection_utility_light++; message.brief(L_FKEY_LAMP_UP); buttonCommand = true; }
+        if (keyPad.F->wasPressed()) {  current_selection_utility_light--; message.brief(L_FKEY_LAMP_DN); buttonCommand = true; } else
+        if (keyPad.f->wasPressed()) {  current_selection_utility_light++; message.brief(L_FKEY_LAMP_UP); buttonCommand = true; }
         if (buttonCommand) {
-          if (current_selection_utility_light < 1) current_selection_utility_light = 1;
-          if (current_selection_utility_light > 6) current_selection_utility_light = 6;
+          if (current_selection_utility_light < 1) { 
+            current_selection_utility_light = 1;
+            sound.click(-1); 
+          }
+          else if (current_selection_utility_light > 6) {
+            current_selection_utility_light = 6;
+            sound.click(-1); 
+          }
+          else
+            sound.click(0); 
+
           int i; switch(current_selection_utility_light) { case 1: i = 0; break; case 2: i = 15; break; case 3: i = 31; break; case 4: i = 63; break; case 5: i = 127; break; case 6: i = 255; break; default: i = 127; break; }
           #ifdef ESP32
-            ledcWrite(0, i);
+            ledcWrite(PWM_LED_CHANNEL, i);
           #else
             analogWrite(UTILITY_LIGHT_PIN, i);
           #endif
